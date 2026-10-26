@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 type Response struct {
@@ -25,6 +26,8 @@ func NewResponse(conn net.Conn) *Response {
 	}
 	resp.Headers.Set("Connection", "close")
 	resp.Headers.Set("Transfer-Encoding", "chunked")
+	resp.Headers.Set("Server", "myttp/0.0.0")
+	resp.Headers.Set("Date", time.Now().Format(time.RFC1123Z))
 
 	return &resp
 }
