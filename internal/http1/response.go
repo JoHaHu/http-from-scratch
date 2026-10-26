@@ -52,4 +52,5 @@ func (r *Response) WriteHeader(statusCode int) {
 		}
 		fmt.Fprintf(r.Writer, "\r\n")
 	}
+	r.Writer.Flush()
 }

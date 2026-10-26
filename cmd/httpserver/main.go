@@ -49,6 +49,7 @@ func spawn_https(wg *sync.WaitGroup, errCh chan<- error) {
 	cert, err := tls.LoadX509KeyPair("cert.crt", "key.key")
 	if err != nil {
 		errCh <- err
+		return
 	}
 
 	if err := http1.ListenAndServeTLS(tls_addr, nil, cert); err != nil {
