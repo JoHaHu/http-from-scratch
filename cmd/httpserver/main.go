@@ -14,11 +14,12 @@ const tls_addr = ":8443"
 func main() {
 
 	http.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "hello")
+		fmt.Fprintf(w, "hello\n")
+		fmt.Fprintf(w, "hello\n")
 	})
 
 	var wg sync.WaitGroup
-	errCh := make(chan error, 3)
+	errCh := make(chan error, 2)
 
 	wg.Add(2)
 

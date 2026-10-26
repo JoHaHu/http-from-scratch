@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 )
 
 type Response struct {
+	conn        net.Conn
 	Writer      *bufio.Writer
 	Headers     http.Header
 	headersSent bool
@@ -16,11 +18,22 @@ type Response struct {
 func NewResponse(conn net.Conn) *Response {
 	writer := bufio.NewWriter(conn)
 	resp := Response{
+		conn:        conn,
 		Writer:      writer,
 		Headers:     http.Header{},
 		headersSent: false,
 	}
+	resp.Headers.Set("Connection", "close")
+	resp.Headers.Set("Transfer-Encoding", "chunked")
+
 	return &resp
+}
+
+func (r *Response) Close() error {
+	r.Writer.Write([]byte("0\r\n\r\n"))
+	r.Writer.Flush()
+	r.conn.Close()
+	return nil
 }
 
 func (r *Response) Header() http.Header {
@@ -32,8 +45,31 @@ func (r *Response) Write(data []byte) (n int, err error) {
 	if !r.headersSent {
 		r.WriteHeader(http.StatusOK)
 	}
-	n, err = r.Writer.Write(data)
+
+	length := len(data)
+	hexStr := strconv.FormatInt(int64(length), 16)
+
+	written, err := r.Writer.Write([]byte(hexStr))
 	if err != nil {
+		n += written
+		return n, err
+	}
+
+	written, err = r.Writer.Write([]byte("\r\n"))
+	if err != nil {
+		n += written
+		return n, err
+	}
+
+	written, err = r.Writer.Write(data)
+	if err != nil {
+		n += written
+		return n, err
+	}
+
+	written, err = r.Writer.Write([]byte("\r\n"))
+	if err != nil {
+		n += written
 		return n, err
 	}
 	err = r.Writer.Flush()
