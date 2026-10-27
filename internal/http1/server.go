@@ -55,14 +55,14 @@ func ListenAndServe(addr string, handler http.Handler) error {
 
 func HandleConnection(conn net.Conn, mux http.Handler) {
 	reader := bufio.NewReader(conn)
-	writer := NewResponse(conn)
-	defer writer.Close()
+	resp := NewResponse(conn)
+	defer resp.Close()
 	req, err := ParseRequest(reader)
 	if err != nil {
-		writer.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(writer, "parse request: %w\n", err)
+		resp.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(resp, "parse request: %w\n", err)
 		return
 	}
 
-	mux.ServeHTTP(writer, req)
+	mux.ServeHTTP(resp, req)
 }

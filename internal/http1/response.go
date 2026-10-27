@@ -2,40 +2,62 @@ package http1
 
 import (
 	"bufio"
+	"compress/gzip"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
-	"strconv"
+	"net/http/httputil"
 	"time"
 )
 
 type Response struct {
 	conn        net.Conn
 	Writer      *bufio.Writer
+	GzipWriter  *gzip.Writer
+	BodyWriter  io.WriteCloser
 	Headers     http.Header
 	headersSent bool
 }
 
 func NewResponse(conn net.Conn) *Response {
+
 	writer := bufio.NewWriter(conn)
+
+	bodyWriter := httputil.NewChunkedWriter(writer)
+
 	resp := Response{
-		conn:        conn,
-		Writer:      writer,
+		conn:       conn,
+		Writer:     writer,
+		BodyWriter: bodyWriter,
+
 		Headers:     http.Header{},
 		headersSent: false,
 	}
-	resp.Headers.Set("Connection", "close")
 	resp.Headers.Set("Transfer-Encoding", "chunked")
 	resp.Headers.Set("Server", "myttp/0.0.0")
 	resp.Headers.Set("Date", time.Now().Format(time.RFC1123Z))
+	resp.Headers.Set("Connection", "close")
 
 	return &resp
 }
 
 func (r *Response) Close() error {
-	r.Writer.Write([]byte("0\r\n\r\n"))
-	r.Writer.Flush()
-	r.conn.Close()
+
+	err := r.BodyWriter.Close()
+	if err != nil {
+		panic(err)
+	}
+	r.Writer.WriteString("\r\n")
+	err = r.Writer.Flush()
+	if err != nil {
+		panic(err)
+	}
+	err = r.conn.Close()
+	if err != nil {
+		panic(err)
+	}
+
 	return nil
 }
 
@@ -44,38 +66,15 @@ func (r *Response) Header() http.Header {
 }
 
 func (r *Response) Write(data []byte) (n int, err error) {
-
 	if !r.headersSent {
+		if r.Headers.Get("Content-Type") == "" {
+			ct := http.DetectContentType(data[:min(len(data), 512)])
+			r.Headers.Set("Content-Type", ct)
+		}
 		r.WriteHeader(http.StatusOK)
 	}
+	n, err = r.BodyWriter.Write(data)
 
-	length := len(data)
-	hexStr := strconv.FormatInt(int64(length), 16)
-
-	written, err := r.Writer.Write([]byte(hexStr))
-	if err != nil {
-		n += written
-		return n, err
-	}
-
-	written, err = r.Writer.Write([]byte("\r\n"))
-	if err != nil {
-		n += written
-		return n, err
-	}
-
-	written, err = r.Writer.Write(data)
-	if err != nil {
-		n += written
-		return n, err
-	}
-
-	written, err = r.Writer.Write([]byte("\r\n"))
-	if err != nil {
-		n += written
-		return n, err
-	}
-	err = r.Writer.Flush()
 	return n, err
 }
 
@@ -91,5 +90,4 @@ func (r *Response) WriteHeader(statusCode int) {
 		}
 		fmt.Fprintf(r.Writer, "\r\n")
 	}
-	r.Writer.Flush()
 }
