@@ -194,12 +194,17 @@ func isValidHeaderName(key string) bool {
 	if key == "" {
 		return false
 	}
+	if strings.ContainsAny(key, " \t\n\r%") {
+		return false
+	}
 
 	return true
 }
 
 func isValidHeaderValue(value string) bool {
-
+	if strings.ContainsAny(value, " \t\n\r%") {
+		return false
+	}
 	return true
 }
 
