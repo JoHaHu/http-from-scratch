@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"crypto/tls"
 	"fmt"
 	"httpServer/internal/http1"
+	"io"
 	"net/http"
 	"sync"
 )
@@ -14,8 +16,18 @@ const tls_addr = ":8443"
 func main() {
 
 	http.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "hello World!\n")
-		fmt.Fprintf(w, "hello\n")
+		fmt.Fprintf(w, "hello")
+	})
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "hello")
+	})
+
+	http.HandleFunc("POST /echo", func(w http.ResponseWriter, r *http.Request) {
+		io.Copy(w, r.Body)
+	})
+	http.HandleFunc("POST /upper", func(w http.ResponseWriter, r *http.Request) {
+		io.Copy(UpperWriter{w}, r.Body)
 	})
 
 	var wg sync.WaitGroup
@@ -57,4 +69,13 @@ func spawn_https(wg *sync.WaitGroup, errCh chan<- error) {
 		errCh <- err
 	}
 
+}
+
+type UpperWriter struct {
+	Writer io.Writer
+}
+
+func (u UpperWriter) Write(p []byte) (int, error) {
+	upper := bytes.ToUpper(p)
+	return u.Writer.Write(upper)
 }
