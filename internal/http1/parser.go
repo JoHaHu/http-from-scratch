@@ -85,7 +85,7 @@ func ParseRequest(reader *bufio.Reader) (*http.Request, error) {
 	if host != "" {
 		uri.Host = host
 	}
-	var bodyReader io.Reader = io.LimitReader(reader, 0)
+	var bodyReader io.Reader = NewExactReader(reader, 0)
 	req.ContentLength = 0
 	trailers := false
 
@@ -104,7 +104,7 @@ func ParseRequest(reader *bufio.Reader) (*http.Request, error) {
 					return nil, ClientError{BadRequest}
 				}
 			}
-			bodyReader = io.LimitReader(reader, req.ContentLength)
+			bodyReader = NewExactReader(reader, req.ContentLength)
 
 		}
 	}
@@ -202,7 +202,7 @@ func isValidHeaderName(key string) bool {
 }
 
 func isValidHeaderValue(value string) bool {
-	if strings.ContainsAny(value, " \t\n\r%") {
+	if strings.ContainsAny(value, "\t\n\r%") {
 		return false
 	}
 	return true
@@ -225,11 +225,13 @@ func (cr *closingReader) Read(p []byte) (n int, err error) {
 
 func (cr *closingReader) Close() error {
 	if !cr.sawEOF {
-		_, err := io.Copy(io.Discard, cr.bodyReader)
+		w, err := io.Copy(io.Discard, cr.bodyReader)
 		if err != nil {
+			print("%s", w)
 			return Incomplete
 		}
 	}
+
 	cr.sawEOF = true
 	if cr.trailers {
 
@@ -252,4 +254,48 @@ func (cr *closingReader) Close() error {
 
 func ClosingReader(r io.Reader, cr *bufio.Reader, trailers bool) io.ReadCloser {
 	return &closingReader{r, cr, false, trailers}
+}
+
+type ExactReader struct {
+	r         io.Reader
+	remaining int64
+}
+
+func NewExactReader(r io.Reader, n int64) *ExactReader {
+	return &ExactReader{
+		r:         r,
+		remaining: n,
+	}
+}
+
+func (e *ExactReader) Read(p []byte) (int, error) {
+	if e.remaining <= 0 {
+		return 0, io.EOF
+	}
+	if int64(len(p)) > e.remaining {
+		p = p[:e.remaining]
+	}
+	n, err := e.r.Read(p)
+	e.remaining -= int64(n)
+
+	if errors.Is(err, io.EOF) {
+		if e.remaining > 0 {
+			return n, Incomplete
+		}
+		return n, io.EOF
+	}
+
+	if err != nil {
+		return n, err
+	}
+
+	if e.remaining == 0 {
+		return n, io.EOF
+	}
+
+	return n, nil
+}
+
+func (e *ExactReader) Remaining() int64 {
+	return e.remaining
 }
