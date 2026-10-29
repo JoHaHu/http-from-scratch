@@ -7,8 +7,10 @@ import (
 	"httpServer/internal/http1"
 	"httpServer/internal/mux1"
 	"io"
+	"math/rand/v2"
 	"net/http"
 	"sync"
+	"time"
 )
 
 const addr = ":8080"
@@ -19,9 +21,8 @@ func main() {
 	mux := mux1.NewMux()
 	mux.RegisterHandler("/metrics", mux1.DefaultMetrics)
 	mux.Register("/hello", func(w http.ResponseWriter, r *http.Request) {
-		counter := mux1.Count("request_count", make(map[string]string))
-		counter.Increment()
 		fmt.Fprintf(w, "hello\n")
+		NormalDelay(100*time.Microsecond, 50)
 	})
 
 	mux.Register("/{test}", func(w http.ResponseWriter, r *http.Request) {
@@ -45,14 +46,15 @@ func main() {
 	mux.Register("/upper", func(w http.ResponseWriter, r *http.Request) {
 		io.Copy(UpperWriter{w}, r.Body)
 	})
+	handler := mux1.RequestMonitor{mux}
 
 	var wg sync.WaitGroup
 	errCh := make(chan error, 2)
 
 	wg.Add(2)
 
-	go spawn_http(&wg, errCh, mux)
-	go spawn_https(&wg, errCh, mux)
+	go spawn_http(&wg, errCh, handler)
+	go spawn_https(&wg, errCh, handler)
 
 	wg.Wait()
 	close(errCh)
@@ -65,14 +67,14 @@ func main() {
 
 }
 
-func spawn_http(wg *sync.WaitGroup, errCh chan<- error, mux *mux1.PathMux) {
+func spawn_http(wg *sync.WaitGroup, errCh chan<- error, mux http.Handler) {
 	defer wg.Done()
 	if err := http1.ListenAndServe(addr, mux); err != nil {
 		errCh <- err
 	}
 }
 
-func spawn_https(wg *sync.WaitGroup, errCh chan<- error, mux *mux1.PathMux) {
+func spawn_https(wg *sync.WaitGroup, errCh chan<- error, mux http.Handler) {
 	defer wg.Done()
 
 	cert, err := tls.LoadX509KeyPair("cert.crt", "key.key")
@@ -94,4 +96,14 @@ type UpperWriter struct {
 func (u UpperWriter) Write(p []byte) (int, error) {
 	upper := bytes.ToUpper(p)
 	return u.Writer.Write(upper)
+}
+
+func NormalDelay(mean, stdDev time.Duration) {
+	sample := float64(mean) + rand.NormFloat64()*float64(stdDev)
+
+	if sample < 0 {
+		sample = 0
+	}
+
+	time.Sleep(time.Duration(sample))
 }
