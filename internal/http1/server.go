@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"httpServer/internal/mux1"
 	"io"
 	"net"
 	"net/http"
@@ -51,7 +52,7 @@ func ListenAndServeTLS(addr string, handler http.Handler, cert tls.Certificate) 
 	defer tlsListener.Close()
 
 	if handler == nil {
-		handler = http.DefaultServeMux
+		handler = mux1.NewMux()
 	}
 
 	for {
@@ -72,7 +73,7 @@ func ListenAndServe(addr string, handler http.Handler) error {
 	defer listener.Close()
 
 	if handler == nil {
-		handler = http.DefaultServeMux
+		handler = mux1.NewMux()
 	}
 
 	for {
