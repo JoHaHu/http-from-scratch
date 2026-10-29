@@ -19,8 +19,9 @@ func main() {
 	mux := mux1.NewMux()
 	mux.RegisterHandler("/metrics", mux1.DefaultMetrics)
 	mux.Register("/hello", func(w http.ResponseWriter, r *http.Request) {
-
-		fmt.Fprintf(w, "hello")
+		counter := mux1.Count("request_count", make(map[string]string))
+		counter.Increment()
+		fmt.Fprintf(w, "hello\n")
 	})
 
 	mux.Register("/{test}", func(w http.ResponseWriter, r *http.Request) {

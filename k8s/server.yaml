@@ -22,16 +22,19 @@ spec:
           ports:
             - containerPort: 8080
               protocol: TCP
+              name: http
       restartPolicy: Always
 ---
 kind: Service
 apiVersion: v1
 metadata:
   name: server
+  labels:
+    app: server
 spec:
   selector:
     app: server
-  type: LoadBalancer
+  type: ClusterIP
   ports:
     - port: 8080
       targetPort: 8080
