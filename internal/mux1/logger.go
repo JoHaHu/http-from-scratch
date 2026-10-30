@@ -10,6 +10,6 @@ type LogHandler struct {
 }
 
 func (l *LogHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	slog.Info("http_request", "method", req.Method, "path", req.URL.EscapedPath())
+	slog.InfoContext(req.Context(), "http_request", "method", req.Method, "path", req.URL.EscapedPath())
 	l.Handler.ServeHTTP(w, req)
 }

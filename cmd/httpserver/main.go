@@ -28,10 +28,17 @@ const tls_addr = ":8443"
 
 func main() {
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+	innerLogger := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
-	}))
+	})
+	logger := slog.New(&mux1.TraceLogHandler{innerLogger})
 	slog.SetDefault(logger)
+
+	ctx := context.Background()
+
+	tp, _ := initTracer(ctx)
+
+	defer tp.Shutdown(ctx)
 
 	mux := mux1.NewMux()
 	mux.Register("/metrics", func(w http.ResponseWriter, req *http.Request) {
@@ -65,6 +72,7 @@ func main() {
 	})
 	var handler http.Handler = mux1.RequestMonitor{mux}
 	handler = &mux1.LogHandler{handler}
+	handler = &mux1.TraceHandler{handler}
 
 	var wg sync.WaitGroup
 	errCh := make(chan error, 2)
@@ -131,6 +139,7 @@ func initTracer(ctx context.Context) (*sdktrace.TracerProvider, error) {
 	exporter, err := otlptracehttp.New(ctx,
 		otlptracehttp.WithEndpoint("vtsingle-vmks-victoria-metrics-k8s-stack:10428"),
 		otlptracehttp.WithInsecure(),
+		otlptracehttp.WithURLPath("/insert/opentelemetry/v1/traces"),
 	)
 	if err != nil {
 		return nil, err
