@@ -8,32 +8,29 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/VictoriaMetrics/metrics"
 )
 
 type RequestMonitor struct {
 	http.Handler
 }
 
+var (
+	gauge = metrics.NewGauge("active_requests", nil)
+	hist  = metrics.NewHistogram("request_latency_ms")
+)
+
 func (rm RequestMonitor) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
-	counter := Count("request_count")
-	counter.Increment()
+	counter := metrics.GetOrCreateCounter(fmt.Sprintf("http_request{method=\"%s\",path=\"%s\"}", r.Method, r.URL.EscapedPath()))
+	counter.Inc()
 
-	gauge := GaugeM("inflight_requests")
-	gauge.Increment()
-	defer gauge.Decrement()
-
-	hist := HistogramM("request_latency_ms", 0, 1_000, 100)
+	gauge.Inc()
+	defer gauge.Dec()
 	start := time.Now()
-
+	defer hist.UpdateDuration(start)
 	rm.Handler.ServeHTTP(w, r)
-
-	defer func() {
-		end := time.Now()
-		elapsed := end.Sub(start)
-		hist.Record(elapsed.Microseconds())
-	}()
-
 }
 
 type SMetric interface {

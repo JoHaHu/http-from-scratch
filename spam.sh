@@ -2,7 +2,7 @@
 set -euo pipefail
 
 TARGET_URL="http://localhost:8080/hello"
-TOTAL_REQUESTS=1
+TOTAL_REQUESTS=1000
 
 generate_requests() {
   for ((i = 1; i <= TOTAL_REQUESTS; i++)); do

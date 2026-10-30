@@ -34,7 +34,7 @@ metadata:
 spec:
   selector:
     app: server
-  type: LoadBalancer
+  type: ClusterIP
   ports:
     - port: 8080
       targetPort: 8080
@@ -54,3 +54,28 @@ spec:
     - port: http
       path: /metrics
       interval: 15s
+---
+kind: HTTPRoute
+apiVersion: gateway.networking.k8s.io/v1
+metadata:
+  name: server
+spec:
+  parentRefs:
+    - name: eg
+      namespace: envoy-gateway-system
+  hostnames:
+    - localhost
+  rules:
+    - backendRefs:
+        - name: server
+          port: 8080
+      matches:
+        - path:
+            value: "/server"
+            type: PathPrefix
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: "/"
